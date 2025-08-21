@@ -189,91 +189,73 @@ export const TodoApp = () => {
   const totalCount = todos.length;
 
   return (
-		<div className="min-h-screen bg-gradient-subtle">
-			<div className="container mx-auto px-4 py-8 max-w-4xl">
-				{/* Header */}
-				<header className="flex items-center justify-between mb-8">
-					<div className="flex items-center gap-3">
-						<div>
-							<img src="/icon.png" alt="Quik-do logo" className="h-12 w-12" />
-						</div>
-						<div>
-							<h1 className="text-3xl font-bold text-foreground">Quik-do</h1>
-							<p className="text-muted-foreground">  Let it happen</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						<TagManager
-							customTags={customTags}
-							onAddCustomTag={handleAddCustomTag}
-							onUpdateCustomTag={handleUpdateCustomTag}
-							onDeleteCustomTag={handleDeleteCustomTag}
-						/>
-						<ThemeSelector />
-						<ThemeToggle />
-					</div>
-				</header>
+    <div className="min-h-screen bg-gradient-subtle">
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Header */}
+        <header className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <CheckSquare className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">My Todos</h1>
+              <p className="text-muted-foreground">Stay organized and productive</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <TagManager 
+              customTags={customTags}
+              onAddCustomTag={handleAddCustomTag}
+              onUpdateCustomTag={handleUpdateCustomTag}
+              onDeleteCustomTag={handleDeleteCustomTag}
+            />
+            <ThemeSelector />
+            <ThemeToggle />
+          </div>
+        </header>
 
-				{/* Progress Bar */}
-				{totalCount > 0 && (
-					<div className="mb-6">
-						<ProgressBar completed={completedCount} total={totalCount} />
-					</div>
-				)}
+        {/* Progress Bar */}
+        {totalCount > 0 && (
+          <div className="mb-6">
+            <ProgressBar completed={completedCount} total={totalCount} />
+          </div>
+        )}
 
-				{/* Add Todo */}
-				<div className="mb-6">
-					<AddTodo onAdd={handleAddTodo} customTags={customTags} />
-				</div>
+        {/* Add Todo */}
+        <div className="mb-6">
+          <AddTodo onAdd={handleAddTodo} customTags={customTags} />
+        </div>
 
-				{/* Filters */}
-				{totalCount > 0 && (
-					<div className="mb-6">
-						<FilterBar
-							filters={filters}
-							onFiltersChange={setFilters}
-							customTags={customTags}
-						/>
-					</div>
-				)}
+        {/* Filters */}
+        {totalCount > 0 && (
+          <div className="mb-6">
+            <FilterBar filters={filters} onFiltersChange={setFilters} customTags={customTags} />
+          </div>
+        )}
 
-				{/* Todo List */}
-				<main>
-					<TodoList
-						todos={filteredTodos}
-						onUpdate={handleUpdateTodo}
-						onDelete={handleDeleteTodo}
-						customTags={customTags}
-					/>
+        {/* Todo List */}
+        <main>
+          <TodoList 
+            todos={filteredTodos}
+            onUpdate={handleUpdateTodo}
+            onDelete={handleDeleteTodo}
+            customTags={customTags}
+          />
+          
+          {/* Results summary */}
+          {totalCount > 0 && filteredTodos.length !== totalCount && (
+            <div className="text-center mt-6 text-sm text-muted-foreground">
+              Showing {filteredTodos.length} of {totalCount} todos
+            </div>
+          )}
+        </main>
 
-					{/* Results summary */}
-					{totalCount > 0 && filteredTodos.length !== totalCount && (
-						<div className="text-center mt-6 text-sm text-muted-foreground">
-							Showing {filteredTodos.length} of {totalCount} todos
-						</div>
-					)}
-				</main>
-
-				{/* Footer */}
-				<footer className="mt-12 text-center text-xs text-muted-foreground">
-					<p>
-						Built with love by{" "}
-						<a
-							href="https://github.com/ghassanelgendy"
-							className="text-primary hover:underline">
-							Ghassan Elgendy
-						</a>
-					</p>
-					<p className="mt-1">
-						This project is open source and available on{" "}
-						<a
-							href="https://github.com/ghassanelgendy/quik-do"
-							className="text-primary hover:underline">
-							GitHub
-						</a>
-					</p>
-				</footer>
-			</div>
-		</div>
-	);
+        {/* Footer */}
+        <footer className="mt-12 text-center text-xs text-muted-foreground">
+          <p>Built with React, TypeScript, and Tailwind CSS</p>
+          <p className="mt-1">Ready for AWS deployment with API Gateway, Lambda, and DynamoDB</p>
+        </footer>
+      </div>
+    </div>
+  );
 };
