@@ -12,7 +12,6 @@ phases:
       - echo Build started on `date`
       - npm run build
 artifacts:
+  base-directory: dist
   files:
     - '**/*'
-  base-directory: build
-
