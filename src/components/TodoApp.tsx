@@ -8,8 +8,10 @@ import { Settings } from './Settings';
 import { AuthButtons } from './AuthButtons';
 import { Todo, FilterState, CustomTag } from '@/types/todo';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export const TodoApp = () => {
+  const { user } = useAuth();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [filters, setFilters] = useState<FilterState>({
@@ -19,6 +21,13 @@ export const TodoApp = () => {
     selectedTags: [],
   });
   const { toast } = useToast();
+
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 18) return 'afternoon';
+    return 'evening';
+  };
 
   // Load todos and custom tags from localStorage on mount
   useEffect(() => {
@@ -202,6 +211,11 @@ export const TodoApp = () => {
 						<div className="min-w-0">
 							<h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Quik-do</h1>
 							<p className="text-sm sm:text-base text-muted-foreground">Let it happen</p>
+							{user && (
+								<p className="text-xs sm:text-sm text-primary font-medium mt-1">
+									Good {getTimeGreeting()}, {user.displayName || user.email?.split('@')[0] || 'User'}
+								</p>
+							)}
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
