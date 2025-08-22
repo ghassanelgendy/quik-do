@@ -1,7 +1,8 @@
 import { Todo, CustomTag } from '../types/todo';
 
 // API Configuration - Replace with your AWS API Gateway URL
-const API_BASE_URL = process.env.VITE_API_BASE_URL || 'https://your-api-gateway-url.amazonaws.com/prod';
+// In Vite, env vars are accessed via import.meta.env and must be prefixed with VITE_
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || 'https://your-api-gateway-url.amazonaws.com/prod';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {

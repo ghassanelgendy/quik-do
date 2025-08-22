@@ -9,9 +9,11 @@ import { AuthButtons } from './AuthButtons';
 import { Todo, FilterState, CustomTag } from '@/types/todo';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useDataSync } from '@/hooks/useDataSync';
 
 export const TodoApp = () => {
   const { user } = useAuth();
+  const { syncLocalToRemote, loadRemoteData, saveData, isRemoteEnabled } = useDataSync();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [filters, setFilters] = useState<FilterState>({
@@ -64,6 +66,24 @@ export const TodoApp = () => {
     }
   }, []);
 
+  // When user logs in: sync local data to remote, then load fresh remote data
+  useEffect(() => {
+    const hydrateFromRemote = async () => {
+      try {
+        if (user && isRemoteEnabled()) {
+          await syncLocalToRemote();
+          const { todos: remoteTodos, customTags: remoteTags } = await loadRemoteData();
+          if (remoteTodos && Array.isArray(remoteTodos)) setTodos(remoteTodos);
+          if (remoteTags && Array.isArray(remoteTags)) setCustomTags(remoteTags);
+        }
+      } catch (err) {
+        console.error('Failed to sync/load remote data:', err);
+      }
+    };
+    hydrateFromRemote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // Save todos to localStorage whenever todos change
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
@@ -109,52 +129,73 @@ export const TodoApp = () => {
   const generateId = () => `todo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // Add new todo
-  const handleAddTodo = (todoData: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date();
-    const newTodo: Todo = {
-      ...todoData,
-      id: generateId(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    
-    setTodos(prev => [newTodo, ...prev]);
-    toast({
-      title: "Todo created!",
-      description: `"${newTodo.title}" has been added to your list.`,
-    });
+  const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      if (isRemoteEnabled()) {
+        const created = await saveData('todo', 'create', todoData) as Todo;
+        if (created) {
+          setTodos(prev => [created, ...prev]);
+          toast({ title: "Todo created!", description: `"${created.title}" has been added to your list.` });
+          return;
+        }
+      }
+
+      // Fallback to local
+      const now = new Date();
+      const newTodo: Todo = { ...todoData, id: generateId(), createdAt: now, updatedAt: now };
+      setTodos(prev => [newTodo, ...prev]);
+      toast({ title: "Todo created!", description: `"${newTodo.title}" has been added to your list.` });
+    } catch (error) {
+      console.error('Add todo failed:', error);
+      toast({ title: 'Failed to create todo', description: 'Please try again.', variant: 'destructive' });
+    }
   };
 
   // Update todo
-  const handleUpdateTodo = (id: string, updates: Partial<Todo>) => {
-    setTodos(prev => prev.map(todo => 
-      todo.id === id 
-        ? { ...todo, ...updates, updatedAt: new Date() }
-        : todo
-    ));
-    
-    if (updates.completed !== undefined) {
-      const todo = todos.find(t => t.id === id);
-      if (todo) {
-        toast({
-          title: updates.completed ? "Todo completed!" : "Todo reopened",
-          description: `"${todo.title}" has been ${updates.completed ? 'completed' : 'reopened'}.`,
-        });
+  const handleUpdateTodo = async (id: string, updates: Partial<Todo>) => {
+    try {
+      if (isRemoteEnabled()) {
+        const updated = await saveData('todo', 'update', updates, id) as Todo;
+        if (updated) {
+          setTodos(prev => prev.map(t => t.id === id ? updated : t));
+        }
+      } else {
+        setTodos(prev => prev.map(todo => 
+          todo.id === id 
+            ? { ...todo, ...updates, updatedAt: new Date() }
+            : todo
+        ));
       }
+
+      if (updates.completed !== undefined) {
+        const todo = todos.find(t => t.id === id);
+        if (todo) {
+          toast({
+            title: updates.completed ? "Todo completed!" : "Todo reopened",
+            description: `"${todo.title}" has been ${updates.completed ? 'completed' : 'reopened'}.`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Update todo failed:', error);
+      toast({ title: 'Failed to update todo', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
   // Delete todo
-  const handleDeleteTodo = (id: string) => {
-    const todo = todos.find(t => t.id === id);
-    setTodos(prev => prev.filter(todo => todo.id !== id));
-    
-    if (todo) {
-      toast({
-        title: "Todo deleted",
-        description: `"${todo.title}" has been removed from your list.`,
-        variant: "destructive",
-      });
+  const handleDeleteTodo = async (id: string) => {
+    try {
+      const toRemove = todos.find(t => t.id === id);
+      if (isRemoteEnabled()) {
+        await saveData('todo', 'delete', null, id);
+      }
+      setTodos(prev => prev.filter(todo => todo.id !== id));
+      if (toRemove) {
+        toast({ title: "Todo deleted", description: `"${toRemove.title}" has been removed from your list.`, variant: "destructive" });
+      }
+    } catch (error) {
+      console.error('Delete todo failed:', error);
+      toast({ title: 'Failed to delete todo', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
