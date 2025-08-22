@@ -1,13 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { isBefore, startOfDay } from 'date-fns';
-import { CheckSquare, Settings } from 'lucide-react';
 import { AddTodo } from './AddTodo';
 import { TodoList } from './TodoList';
 import { FilterBar } from './FilterBar';
 import { ProgressBar } from './ProgressBar';
-import { ThemeToggle } from './ThemeToggle';
-import { ThemeSelector } from './ThemeSelector';
-import { TagManager } from './TagManager';
+import { Settings } from './Settings';
+import { AuthButtons } from './AuthButtons';
 import { Todo, FilterState, CustomTag } from '@/types/todo';
 import { useToast } from '@/hooks/use-toast';
 
@@ -194,23 +192,26 @@ export const TodoApp = () => {
 				{/* Header */}
 				<header className="flex items-center justify-between mb-8">
 					<div className="flex items-center gap-3">
-						<div>
-							<img src="/icon.png" alt="Quik-do logo" className="h-12 w-12" />
+						<div className="flex-shrink-0">
+							<img 
+								src="/icon.png" 
+								alt="Quik-do logo" 
+								className="h-12 w-12 object-contain" 
+							/>
 						</div>
-						<div>
-							<h1 className="text-3xl font-bold text-foreground">Quik-do</h1>
-							<p className="text-muted-foreground">  Let it happen</p>
+						<div className="min-w-0">
+							<h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Quik-do</h1>
+							<p className="text-sm sm:text-base text-muted-foreground">Let it happen</p>
 						</div>
 					</div>
-					<div className="flex items-center gap-2">
-						<TagManager
+					<div className="flex items-center gap-3">
+						<AuthButtons />
+						<Settings
 							customTags={customTags}
 							onAddCustomTag={handleAddCustomTag}
 							onUpdateCustomTag={handleUpdateCustomTag}
 							onDeleteCustomTag={handleDeleteCustomTag}
 						/>
-						<ThemeSelector />
-						<ThemeToggle />
 					</div>
 				</header>
 

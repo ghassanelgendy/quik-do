@@ -2,11 +2,11 @@ import { Palette, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useAdvancedTheme } from '@/hooks/useAdvancedTheme';
+import { useTheme } from '@/components/ThemeProvider';
 import { ACCENT_THEMES, AccentTheme } from '@/types/theme';
 
 export const ThemeSelector = () => {
-  const { theme, setAccent } = useAdvancedTheme();
+  const { theme, setAccent } = useTheme();
 
   return (
     <Popover>

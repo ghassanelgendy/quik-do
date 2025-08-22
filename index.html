@@ -11,6 +11,30 @@
     <meta property="og:description" content="A modern, feature-rich todo list app with priority management, tagging, due dates, and progress tracking. Built with React and ready for AWS deployment." />
     <meta property="og:type" content="website" />
 
+    <script>
+      // Prevent flash of unstyled content by setting theme immediately
+      (function() {
+        const stored = localStorage.getItem('theme-config');
+        if (stored) {
+          try {
+            const theme = JSON.parse(stored);
+            document.documentElement.classList.add(theme.mode);
+            if (theme.accent !== 'default') {
+              document.documentElement.classList.add(`theme-${theme.accent}`);
+            }
+          } catch (e) {
+            // Fallback to system preference
+            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.classList.add(isDark ? 'dark' : 'light');
+          }
+        } else {
+          // No stored theme, use system preference
+          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.add(isDark ? 'dark' : 'light');
+        }
+      })();
+    </script>
+
   </head>
 
   <body>
