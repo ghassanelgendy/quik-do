@@ -151,10 +151,10 @@ export const TodoApp = () => {
       setCustomTags(prev => [...prev, optimistic]);
 
       try {
-        const created = await withTimeout(
-          todoApi.createCustomTag(tagData, { strictCloud: true })
-        );
-        setCustomTags(prev => prev.map(t => t.id === optimistic.id ? created : t));
+        // const created = await withTimeout(
+        //   todoApi.createCustomTag(tagData, { strictCloud: true })
+        // );
+        // setCustomTags(prev => prev.map(t => t.id === optimistic.id ? created : t));
       } catch (e: any) {
         // Rollback
         setCustomTags(prev => prev.filter(t => t.id !== optimistic.id));
@@ -172,10 +172,10 @@ export const TodoApp = () => {
       setCustomTags(prev => prev.map(tag => tag.id === id ? { ...tag, ...updates } : tag));
 
       try {
-        const updated = await withTimeout(
-          todoApi.updateCustomTag(id, updates, { strictCloud: true })
-        );
-        setCustomTags(prev => prev.map(tag => tag.id === id ? updated : tag));
+        // const updated = await withTimeout(
+        //   // todoApi.updateCustomTag(id, updates, { strictCloud: true })
+        // );
+        // setCustomTags(prev => prev.map(tag => tag.id === id ? updated : tag));
       } catch (e: any) {
         // Rollback
         if (previous) setCustomTags(prev => prev.map(t => t.id === id ? previous : t));

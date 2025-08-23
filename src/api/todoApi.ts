@@ -1,6 +1,19 @@
 import { Todo, CustomTag } from '../types/todo';
 import { auth } from '@/lib/firebase';
 
+// Generate UUID function for compatibility
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 // API Configuration
 const API_BASE_URL = 'https://by489qc8yj.execute-api.eu-west-1.amazonaws.com/testing';
 
@@ -185,7 +198,7 @@ export const createTodo = async (
   const todos = getTodosFromStorage();
   const newTodo: Todo = {
     ...todo,
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -289,70 +302,70 @@ export const getCustomTags = async (): Promise<CustomTag[]> => {
 };
 
 // POST /tags - Create a new custom tag
-export const createCustomTag = async (
-  tag: Omit<CustomTag, 'id' | 'createdAt'>,
-  options?: { strictCloud?: boolean }
-): Promise<CustomTag> => {
-  if (isCloudEnabled()) {
-    try {
-      return await apiRequest('/tags', {
-        method: 'POST',
-        body: JSON.stringify(tag),
-      });
-    } catch (error) {
-      if (options?.strictCloud) throw error;
-      console.error('Cloud create tag failed, falling back to local:', error);
-    }
-  }
-  
-  // Fallback to local
-  const tags = getTagsFromStorage();
-  const newTag: CustomTag = {
-    ...tag,
-    id: crypto.randomUUID(),
-    createdAt: new Date(),
-    uploaded: false,
-  };
-  
-  tags.push(newTag);
-  saveTagsToStorage(tags);
-  return newTag;
-};
+// export const createCustomTag = async (
+//   tag: Omit<CustomTag, 'id' | 'createdAt'>,
+//   options?: { strictCloud?: boolean }
+// ): Promise<CustomTag> => {
+//   if (isCloudEnabled()) {
+//     try {
+//       return await apiRequest('/tags', {
+//         method: 'POST',
+//         body: JSON.stringify(tag),
+//       });
+//     } catch (error) {
+//       if (options?.strictCloud) throw error;
+//       console.error('Cloud create tag failed, falling back to local:', error);
+//     }
+//   }
+//   
+//   // Fallback to local
+//   const tags = getTagsFromStorage();
+//   const newTag: CustomTag = {
+//     ...tag,
+//     id: generateUUID(),
+//     createdAt: new Date(),
+//     uploaded: false,
+//   };
+//   
+//   tags.push(newTag);
+//   saveTagsToStorage(tags);
+//   return newTag;
+// };
 
 // PUT /tags/:id - Update an existing custom tag
-export const updateCustomTag = async (
-  id: string,
-  updates: Partial<CustomTag>,
-  options?: { strictCloud?: boolean }
-): Promise<CustomTag> => {
-  if (isCloudEnabled()) {
-    try {
-      return await apiRequest(`/tags/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(updates),
-      });
-    } catch (error) {
-      if (options?.strictCloud) throw error;
-      console.error('Cloud update tag failed, falling back to local:', error);
-    }
-  }
-  
-  // Fallback to local
-  const tags = getTagsFromStorage();
-  const index = tags.findIndex(tag => tag.id === id);
-  
-  if (index === -1) {
-    throw new Error('Tag not found');
-  }
-  
-  tags[index] = {
-    ...tags[index],
-    ...updates,
-  };
-  
-  saveTagsToStorage(tags);
-  return tags[index];
-};
+// export const updateCustomTag = async (
+//   id: string,
+//   updates: Partial<CustomTag>,
+//   options?: { strictCloud?: boolean }
+// ): Promise<CustomTag> => {
+//   if (isCloudEnabled()) {
+//     try {
+//       return await apiRequest(`/tags/${id}`, {
+//         method: 'PUT',
+//         body: JSON.stringify(updates),
+//       });
+//     } catch (error) {
+//       if (options?.strictCloud) throw error;
+//       console.error('Cloud update tag failed, falling back to local:', error);
+//     }
+//   }
+//   
+//   // Fallback to local
+//   const tags = getTagsFromStorage();
+//   const index = tags.findIndex(tag => tag.id === id);
+//   
+//   if (index === -1) {
+//     throw new Error('Tag not found');
+//   }
+//   
+//   tags[index] = {
+//     ...tags[index],
+//     ...updates,
+//   };
+//   
+//   saveTagsToStorage(tags);
+//   return tags[index];
+// };
 
 // DELETE /tags/:id - Delete a custom tag
 export const deleteCustomTag = async (id: string, options?: { strictCloud?: boolean }): Promise<void> => {

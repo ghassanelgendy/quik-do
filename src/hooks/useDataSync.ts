@@ -103,25 +103,25 @@ export const useDataSync = () => {
           }
 
           console.log(`📤 Creating cloud tag: ${localTag.name}`);
-          const created = await todoApi.createCustomTag({ name: localTag.name, color: localTag.color });
-          // Update local storage with new cloud id and mark uploaded
-          try {
-            const currentLocalTags = todoApi.getTagsFromStorage();
-            const updatedLocalTags = currentLocalTags.map(t =>
-              t.id === localTag.id
-                ? { ...t, id: created.id, createdAt: new Date(created.createdAt), uploaded: true }
-                : t
-            );
-            localStorage.setItem('custom-tags', JSON.stringify(updatedLocalTags));
-          } catch (e) {
-            console.warn('Failed to update local tags with cloud id', e);
-          }
+          // const created = await todoApi.createCustomTag({ name: localTag.name, color: localTag.color });
+          // // Update local storage with new cloud id and mark uploaded
+          // try {
+          //   const currentLocalTags = todoApi.getTagsFromStorage();
+          //   const updatedLocalTags = currentLocalTags.map(t =>
+          //     t.id === localTag.id
+          //       ? { ...t, id: created.id, createdAt: new Date(created.createdAt), uploaded: true }
+          //       : t
+          //   );
+          //   localStorage.setItem('custom-tags', JSON.stringify(updatedLocalTags));
+          // } catch (e) {
+          //   console.warn('Failed to update local tags with cloud id', e);
+          // }
           continue;
         }
 
         if (localTag.createdAt > cloudTag.createdAt) {
           console.log(`📤 Updating cloud tag: ${localTag.name}`);
-          await todoApi.updateCustomTag(localTag.id, { name: localTag.name, color: localTag.color });
+          // await todoApi.updateCustomTag(localTag.id, { name: localTag.name, color: localTag.color });
         }
       }
 
