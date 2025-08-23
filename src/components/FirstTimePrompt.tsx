@@ -55,7 +55,7 @@ export const FirstTimePrompt = ({ isOpen, onClose, onPreferenceSet }: FirstTimeP
             <p className="text-sm text-muted-foreground">
               To sync your todos across devices, please sign in or create an account.
             </p>
-            <AuthButtons onAuthSuccess={handleAuthSuccess} />
+            <AuthButtons onAuthSuccess={handleAuthSuccess} inModalLayout />
             <Button 
               variant="outline" 
               onClick={handleBackToOptions}

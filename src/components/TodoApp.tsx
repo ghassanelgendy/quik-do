@@ -21,6 +21,7 @@ export const TodoApp = () => {
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
   const [showFirstTimePrompt, setShowFirstTimePrompt] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     showCompleted: true,
@@ -119,6 +120,8 @@ export const TodoApp = () => {
         }
       } catch (error) {
         console.error('Error loading data:', error);
+      } finally {
+        setInitialLoading(false);
       }
     };
 
@@ -354,6 +357,31 @@ export const TodoApp = () => {
 				onClose={() => setShowFirstTimePrompt(false)}
 				onPreferenceSet={handlePreferenceSet}
 			/>
+			{initialLoading ? (
+				<div className="container mx-auto px-4 py-8 max-w-4xl">
+					<header className="flex items-center justify-between mb-8">
+						<div className="flex items-center gap-3">
+							<div className="flex-shrink-0">
+								<img 
+									src="/icon.png" 
+									alt="Quik-do logo" 
+									className="h-12 w-12 object-contain" 
+								/>
+							</div>
+							<div className="min-w-0">
+								<h1 className="text-2xl sm:text-3xl font-bold text-foreground truncate">Quik-do</h1>
+								<p className="text-sm sm:text-base text-muted-foreground">Let it happen</p>
+							</div>
+						</div>
+						<div className="flex items-center gap-3">
+							<div className="flex items-center gap-2 text-sm text-muted-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								<span>Loading...</span>
+							</div>
+						</div>
+					</header>
+				</div>
+			) : (
 			<div className="container mx-auto px-4 py-8 max-w-4xl">
 				{/* Header */}
 				<header className="flex items-center justify-between mb-8">
@@ -458,6 +486,7 @@ export const TodoApp = () => {
 					</p>
 				</footer>
 			</div>
+			)}
 		</div>
 	);
 };
