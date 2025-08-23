@@ -126,6 +126,7 @@ export const getTagsFromStorage = (): CustomTag[] => {
     return tags ? JSON.parse(tags).map((tag: any) => ({
       ...tag,
       createdAt: new Date(tag.createdAt),
+      uploaded: tag.uploaded === true,
     })) : [];
   } catch (error) {
     console.error('Error reading tags from localStorage:', error);
@@ -161,7 +162,10 @@ export const getTodos = async (): Promise<Todo[]> => {
 };
 
 // PUT /todos - Create or update todo
-export const createTodo = async (todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>): Promise<Todo> => {
+export const createTodo = async (
+  todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>,
+  options?: { strictCloud?: boolean }
+): Promise<Todo> => {
   if (isCloudEnabled()) {
     try {
       return await apiRequest('/todos', {
@@ -172,6 +176,7 @@ export const createTodo = async (todo: Omit<Todo, 'id' | 'createdAt' | 'updatedA
         }),
       });
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud create failed, falling back to local:', error);
     }
   }
@@ -191,7 +196,11 @@ export const createTodo = async (todo: Omit<Todo, 'id' | 'createdAt' | 'updatedA
 };
 
 // PUT /todos - Update an existing todo
-export const updateTodo = async (id: string, updates: Partial<Todo>): Promise<Todo> => {
+export const updateTodo = async (
+  id: string,
+  updates: Partial<Todo>,
+  options?: { strictCloud?: boolean }
+): Promise<Todo> => {
   if (isCloudEnabled()) {
     try {
       return await apiRequest('/todos', {
@@ -203,6 +212,7 @@ export const updateTodo = async (id: string, updates: Partial<Todo>): Promise<To
         }),
       });
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud update failed, falling back to local:', error);
     }
   }
@@ -226,12 +236,13 @@ export const updateTodo = async (id: string, updates: Partial<Todo>): Promise<To
 };
 
 // DELETE /todos/{id} - Delete a todo
-export const deleteTodo = async (id: string): Promise<void> => {
+export const deleteTodo = async (id: string, options?: { strictCloud?: boolean }): Promise<void> => {
   if (isCloudEnabled()) {
     try {
       await apiRequest(`/todos/${id}`, { method: 'DELETE' });
       return;
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud delete failed, falling back to local:', error);
     }
   }
@@ -278,7 +289,10 @@ export const getCustomTags = async (): Promise<CustomTag[]> => {
 };
 
 // POST /tags - Create a new custom tag
-export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>): Promise<CustomTag> => {
+export const createCustomTag = async (
+  tag: Omit<CustomTag, 'id' | 'createdAt'>,
+  options?: { strictCloud?: boolean }
+): Promise<CustomTag> => {
   if (isCloudEnabled()) {
     try {
       return await apiRequest('/tags', {
@@ -286,6 +300,7 @@ export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>):
         body: JSON.stringify(tag),
       });
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud create tag failed, falling back to local:', error);
     }
   }
@@ -296,6 +311,7 @@ export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>):
     ...tag,
     id: crypto.randomUUID(),
     createdAt: new Date(),
+    uploaded: false,
   };
   
   tags.push(newTag);
@@ -304,7 +320,11 @@ export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>):
 };
 
 // PUT /tags/:id - Update an existing custom tag
-export const updateCustomTag = async (id: string, updates: Partial<CustomTag>): Promise<CustomTag> => {
+export const updateCustomTag = async (
+  id: string,
+  updates: Partial<CustomTag>,
+  options?: { strictCloud?: boolean }
+): Promise<CustomTag> => {
   if (isCloudEnabled()) {
     try {
       return await apiRequest(`/tags/${id}`, {
@@ -312,6 +332,7 @@ export const updateCustomTag = async (id: string, updates: Partial<CustomTag>): 
         body: JSON.stringify(updates),
       });
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud update tag failed, falling back to local:', error);
     }
   }
@@ -334,12 +355,13 @@ export const updateCustomTag = async (id: string, updates: Partial<CustomTag>): 
 };
 
 // DELETE /tags/:id - Delete a custom tag
-export const deleteCustomTag = async (id: string): Promise<void> => {
+export const deleteCustomTag = async (id: string, options?: { strictCloud?: boolean }): Promise<void> => {
   if (isCloudEnabled()) {
     try {
       await apiRequest(`/tags/${id}`, { method: 'DELETE' });
       return;
     } catch (error) {
+      if (options?.strictCloud) throw error;
       console.error('Cloud delete tag failed, falling back to local:', error);
     }
   }

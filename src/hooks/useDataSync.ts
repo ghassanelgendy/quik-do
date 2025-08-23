@@ -96,15 +96,20 @@ export const useDataSync = () => {
         const cloudTag = cloudTags.find((ct: CustomTag) => ct.id === localTag.id);
 
         if (!cloudTag) {
-          // Tag does not exist in cloud yet → create it
+          // Only create if not already uploaded
+          if (localTag.uploaded) {
+            console.log(`⏭️ Skipping cloud create for already-uploaded tag: ${localTag.name}`);
+            continue;
+          }
+
           console.log(`📤 Creating cloud tag: ${localTag.name}`);
           const created = await todoApi.createCustomTag({ name: localTag.name, color: localTag.color });
-          // Update local storage with new cloud id to prevent future 403s on PUT
+          // Update local storage with new cloud id and mark uploaded
           try {
             const currentLocalTags = todoApi.getTagsFromStorage();
             const updatedLocalTags = currentLocalTags.map(t =>
               t.id === localTag.id
-                ? { ...t, id: created.id, createdAt: new Date(created.createdAt) }
+                ? { ...t, id: created.id, createdAt: new Date(created.createdAt), uploaded: true }
                 : t
             );
             localStorage.setItem('custom-tags', JSON.stringify(updatedLocalTags));

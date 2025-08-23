@@ -29,6 +29,14 @@ export const TodoApp = () => {
   });
   const { toast } = useToast();
 
+  // Helper to enforce a max wait time for cloud ops
+  const withTimeout = async <T,>(promise: Promise<T>, ms = 2000): Promise<T> => {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms)) as Promise<T>,
+    ]);
+  };
+
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'morning';
@@ -135,8 +143,20 @@ export const TodoApp = () => {
   // Custom tag management
   const handleAddCustomTag = async (tagData: Omit<CustomTag, 'id' | 'createdAt'>) => {
     try {
-      const newTag = await todoApi.createCustomTag(tagData);
-      setCustomTags(prev => [...prev, newTag]);
+      // Optimistic create
+      const optimistic: CustomTag = { ...tagData, id: `tmp-${crypto.randomUUID()}`, createdAt: new Date() };
+      setCustomTags(prev => [...prev, optimistic]);
+
+      try {
+        const created = await withTimeout(
+          todoApi.createCustomTag(tagData, { strictCloud: true })
+        );
+        setCustomTags(prev => prev.map(t => t.id === optimistic.id ? created : t));
+      } catch (e: any) {
+        // Rollback
+        setCustomTags(prev => prev.filter(t => t.id !== optimistic.id));
+        toast({ title: 'Failed to create tag', description: e?.message || 'Please try again.', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Add tag failed:', error);
     }
@@ -144,8 +164,20 @@ export const TodoApp = () => {
 
   const handleUpdateCustomTag = async (id: string, updates: Partial<CustomTag>) => {
     try {
-      const updatedTag = await todoApi.updateCustomTag(id, updates);
-      setCustomTags(prev => prev.map(tag => tag.id === id ? updatedTag : tag));
+      // Optimistic update
+      const previous = customTags.find(t => t.id === id);
+      setCustomTags(prev => prev.map(tag => tag.id === id ? { ...tag, ...updates } : tag));
+
+      try {
+        const updated = await withTimeout(
+          todoApi.updateCustomTag(id, updates, { strictCloud: true })
+        );
+        setCustomTags(prev => prev.map(tag => tag.id === id ? updated : tag));
+      } catch (e: any) {
+        // Rollback
+        if (previous) setCustomTags(prev => prev.map(t => t.id === id ? previous : t));
+        toast({ title: 'Failed to update tag', description: e?.message || 'Please try again.', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Update tag failed:', error);
     }
@@ -156,17 +188,27 @@ export const TodoApp = () => {
     if (!tag) return;
 
     try {
-      await todoApi.deleteCustomTag(id);
-      
-      // Remove this tag from all todos
+      // Optimistic removal
+      const prevTodos = todos;
+      const prevTags = customTags;
+
       setTodos(prev => prev.map(todo => ({
         ...todo,
         tags: todo.tags.filter(t => t !== tag.name),
         updatedAt: new Date(),
       })));
-
-      // Remove the custom tag
       setCustomTags(prev => prev.filter(t => t.id !== id));
+
+      try {
+        await withTimeout(
+          todoApi.deleteCustomTag(id, { strictCloud: true })
+        );
+      } catch (e: any) {
+        // Rollback
+        setTodos(prevTodos);
+        setCustomTags(prevTags);
+        toast({ title: 'Failed to delete tag', description: e?.message || 'Please try again.', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Delete tag failed:', error);
     }
@@ -177,9 +219,26 @@ export const TodoApp = () => {
   // Add new todo
   const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const newTodo = await todoApi.createTodo(todoData);
-      setTodos(prev => [newTodo, ...prev]);
-      toast({ title: "Todo created!", description: `"${newTodo.title}" has been added to your list.` });
+      // Optimistic create
+      const optimistic: Todo = {
+        ...todoData,
+        id: `tmp-${crypto.randomUUID()}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setTodos(prev => [optimistic, ...prev]);
+
+      try {
+        const created = await withTimeout(
+          todoApi.createTodo(todoData, { strictCloud: true })
+        );
+        setTodos(prev => prev.map(t => t.id === optimistic.id ? created : t));
+        toast({ title: "Todo created!", description: `"${created.title}" has been added to your list.` });
+      } catch (e: any) {
+        // Rollback
+        setTodos(prev => prev.filter(t => t.id !== optimistic.id));
+        toast({ title: 'Failed to create todo', description: e?.message || 'Please try again.', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Add todo failed:', error);
       toast({ title: 'Failed to create todo', description: 'Please try again.', variant: 'destructive' });
@@ -189,8 +248,20 @@ export const TodoApp = () => {
   // Update todo
   const handleUpdateTodo = async (id: string, updates: Partial<Todo>) => {
     try {
-      const updatedTodo = await todoApi.updateTodo(id, updates);
-      setTodos(prev => prev.map(todo => todo.id === id ? updatedTodo : todo));
+      // Optimistic update
+      const previous = todos.find(t => t.id === id);
+      setTodos(prev => prev.map(todo => todo.id === id ? { ...todo, ...updates, updatedAt: new Date() } : todo));
+
+      try {
+        const updated = await withTimeout(
+          todoApi.updateTodo(id, updates, { strictCloud: true })
+        );
+        setTodos(prev => prev.map(todo => todo.id === id ? updated : todo));
+      } catch (e: any) {
+        // Rollback
+        if (previous) setTodos(prev => prev.map(t => t.id === id ? previous : t));
+        toast({ title: 'Failed to update todo', description: e?.message || 'Please try again.', variant: 'destructive' });
+      }
 
       if (updates.completed !== undefined) {
         const todo = todos.find(t => t.id === id);
@@ -211,10 +282,20 @@ export const TodoApp = () => {
   const handleDeleteTodo = async (id: string) => {
     try {
       const toRemove = todos.find(t => t.id === id);
-      await todoApi.deleteTodo(id);
+      // Optimistic remove
       setTodos(prev => prev.filter(todo => todo.id !== id));
-      if (toRemove) {
-        toast({ title: "Todo deleted", description: `"${toRemove.title}" has been removed from your list.`, variant: "destructive" });
+
+      try {
+        await withTimeout(
+          todoApi.deleteTodo(id, { strictCloud: true })
+        );
+        if (toRemove) {
+          toast({ title: "Todo deleted", description: `"${toRemove.title}" has been removed from your list.`, variant: "destructive" });
+        }
+      } catch (e: any) {
+        // Rollback
+        if (toRemove) setTodos(prev => [toRemove, ...prev]);
+        toast({ title: 'Failed to delete todo', description: e?.message || 'Please try again.', variant: 'destructive' });
       }
     } catch (error) {
       console.error('Delete todo failed:', error);

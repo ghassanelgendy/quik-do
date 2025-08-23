@@ -7,6 +7,7 @@ export interface CustomTag {
   name: string;
   color: string; // CSS class name for the color
   createdAt: Date;
+  uploaded?: boolean; // local-only flag to indicate cloud creation completed
 }
 
 export type Tag = PredefinedTag | string; // Can be predefined or custom tag name
