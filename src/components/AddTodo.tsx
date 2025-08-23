@@ -83,7 +83,7 @@ export const AddTodo = ({ onAdd, customTags }: AddTodoProps) => {
 
   const availableTags = [
     ...PREDEFINED_TAGS,
-    ...customTags.map(ct => ct.name)
+    ...(Array.isArray(customTags) ? customTags.map(ct => ct.name) : [])
   ];
 
   if (!isExpanded) {

@@ -127,7 +127,7 @@ export const TagManager = ({
           Manage Tags
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-auto max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Tags className="h-5 w-5" />
@@ -176,6 +176,7 @@ export const TagManager = ({
                     value={newTagName}
                     onChange={(e) => setNewTagName(e.target.value)}
                     maxLength={20}
+                    className="text-[16px] sm:text-base"
                   />
                   
                   {/* Color Selection */}
@@ -266,7 +267,10 @@ export const TagManager = ({
                             {tag.name}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            Created on {tag.createdAt.toLocaleDateString()}
+                            {(() => {
+                              const date = tag.createdAt instanceof Date ? tag.createdAt : new Date(tag.createdAt as any);
+                              return `Created on ${isNaN(date.getTime()) ? '-' : date.toLocaleDateString()}`;
+                            })()}
                           </span>
                         </div>
                         <div className="flex gap-1">

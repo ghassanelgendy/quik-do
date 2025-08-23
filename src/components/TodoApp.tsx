@@ -8,14 +8,19 @@ import { Settings } from './Settings';
 import { AuthButtons } from './AuthButtons';
 import { Todo, FilterState, CustomTag } from '@/types/todo';
 import { useToast } from '@/hooks/use-toast';
+import * as todoApi from '@/api/todoApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSync } from '@/hooks/useDataSync';
+import { FirstTimePrompt } from './FirstTimePrompt';
+import { Cloud, Loader2 } from 'lucide-react';
 
 export const TodoApp = () => {
   const { user } = useAuth();
-  const { syncLocalToRemote, loadRemoteData, saveData, isRemoteEnabled } = useDataSync();
+  const { initializeData, isCloudEnabled } = useDataSync();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [customTags, setCustomTags] = useState<CustomTag[]>([]);
+  const [showFirstTimePrompt, setShowFirstTimePrompt] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     showCompleted: true,
@@ -31,58 +36,91 @@ export const TodoApp = () => {
     return 'evening';
   };
 
-  // Load todos and custom tags from localStorage on mount
+  // Check if this is the first time user visits the app
   useEffect(() => {
-    // Load todos
-    const storedTodos = localStorage.getItem('todos');
-    if (storedTodos) {
-      try {
-        const parsed = JSON.parse(storedTodos);
-        const todosWithDates = parsed.map((todo: any) => ({
-          ...todo,
-          createdAt: new Date(todo.createdAt),
-          updatedAt: new Date(todo.updatedAt),
-          dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
-        }));
-        setTodos(todosWithDates);
-      } catch (error) {
-        console.error('Error loading todos:', error);
-      }
-    }
-
-    // Load custom tags
-    const storedTags = localStorage.getItem('custom-tags');
-    if (storedTags) {
-      try {
-        const parsed = JSON.parse(storedTags);
-        const tagsWithDates = parsed.map((tag: any) => ({
-          ...tag,
-          createdAt: new Date(tag.createdAt),
-        }));
-        setCustomTags(tagsWithDates);
-      } catch (error) {
-        console.error('Error loading custom tags:', error);
-      }
+    const hasSeenPrompt = localStorage.getItem('hasSeenFirstTimePrompt');
+    if (!hasSeenPrompt) {
+      setShowFirstTimePrompt(true);
     }
   }, []);
 
-  // When user logs in: sync local data to remote, then load fresh remote data
+  // Load todos and custom tags on mount
   useEffect(() => {
-    const hydrateFromRemote = async () => {
+    const loadData = async () => {
       try {
-        if (user && isRemoteEnabled()) {
-          await syncLocalToRemote();
-          const { todos: remoteTodos, customTags: remoteTags } = await loadRemoteData();
-          if (remoteTodos && Array.isArray(remoteTodos)) setTodos(remoteTodos);
-          if (remoteTags && Array.isArray(remoteTags)) setCustomTags(remoteTags);
+        if (isCloudEnabled() && user) {
+          // Show sync indicator
+          setIsSyncing(true);
+          
+          // Load from cloud API (after sync is complete)
+          console.log('📥 Loading data from cloud after sync...');
+          const [cloudTodos, cloudTags] = await Promise.all([
+            todoApi.getTodos(),
+            todoApi.getCustomTags(),
+          ]);
+          const normalizedTodos = Array.isArray(cloudTodos)
+            ? cloudTodos.map((todo: any) => ({
+                ...todo,
+                createdAt: new Date(todo.createdAt),
+                updatedAt: new Date(todo.updatedAt),
+                dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
+              }))
+            : [];
+          const normalizedTags = Array.isArray(cloudTags)
+            ? cloudTags.map((tag: any) => ({
+                ...tag,
+                createdAt: new Date(tag.createdAt),
+              }))
+            : [];
+          setTodos(normalizedTodos);
+          setCustomTags(normalizedTags);
+          
+          // Hide sync indicator
+          setIsSyncing(false);
+        } else {
+          // Load from localStorage
+          const storedTodos = localStorage.getItem('todos');
+          if (storedTodos) {
+            try {
+              const parsed = JSON.parse(storedTodos);
+              const todosWithDates = parsed.map((todo: any) => ({
+                ...todo,
+                createdAt: new Date(todo.createdAt),
+                updatedAt: new Date(todo.updatedAt),
+                dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
+              }));
+              setTodos(todosWithDates);
+            } catch (error) {
+              console.error('Error loading todos:', error);
+            }
+          }
+
+          const storedTags = localStorage.getItem('custom-tags');
+          if (storedTags) {
+            try {
+              const parsed = JSON.parse(storedTags);
+              const tagsWithDates = parsed.map((tag: any) => ({
+                ...tag,
+                createdAt: new Date(tag.createdAt),
+              }));
+              setCustomTags(tagsWithDates);
+            } catch (error) {
+              console.error('Error loading custom tags:', error);
+            }
+          }
         }
-      } catch (err) {
-        console.error('Failed to sync/load remote data:', err);
+      } catch (error) {
+        console.error('Error loading data:', error);
       }
     };
-    hydrateFromRemote();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+
+    loadData();
+  }, [user, isCloudEnabled]);
+
+  // Initialize data when user changes
+  useEffect(() => {
+    initializeData();
+  }, [user, initializeData]);
 
   // Save todos to localStorage whenever todos change
   useEffect(() => {
@@ -95,54 +133,51 @@ export const TodoApp = () => {
   }, [customTags]);
 
   // Custom tag management
-  const handleAddCustomTag = (tagData: Omit<CustomTag, 'id' | 'createdAt'>) => {
-    const newTag: CustomTag = {
-      ...tagData,
-      id: `tag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date(),
-    };
-    setCustomTags(prev => [...prev, newTag]);
+  const handleAddCustomTag = async (tagData: Omit<CustomTag, 'id' | 'createdAt'>) => {
+    try {
+      const newTag = await todoApi.createCustomTag(tagData);
+      setCustomTags(prev => [...prev, newTag]);
+    } catch (error) {
+      console.error('Add tag failed:', error);
+    }
   };
 
-  const handleUpdateCustomTag = (id: string, updates: Partial<CustomTag>) => {
-    setCustomTags(prev => prev.map(tag =>
-      tag.id === id ? { ...tag, ...updates } : tag
-    ));
+  const handleUpdateCustomTag = async (id: string, updates: Partial<CustomTag>) => {
+    try {
+      const updatedTag = await todoApi.updateCustomTag(id, updates);
+      setCustomTags(prev => prev.map(tag => tag.id === id ? updatedTag : tag));
+    } catch (error) {
+      console.error('Update tag failed:', error);
+    }
   };
 
-  const handleDeleteCustomTag = (id: string) => {
+  const handleDeleteCustomTag = async (id: string) => {
     const tag = customTags.find(t => t.id === id);
     if (!tag) return;
 
-    // Remove this tag from all todos
-    setTodos(prev => prev.map(todo => ({
-      ...todo,
-      tags: todo.tags.filter(t => t !== tag.name),
-      updatedAt: new Date(),
-    })));
+    try {
+      await todoApi.deleteCustomTag(id);
+      
+      // Remove this tag from all todos
+      setTodos(prev => prev.map(todo => ({
+        ...todo,
+        tags: todo.tags.filter(t => t !== tag.name),
+        updatedAt: new Date(),
+      })));
 
-    // Remove the custom tag
-    setCustomTags(prev => prev.filter(t => t.id !== id));
+      // Remove the custom tag
+      setCustomTags(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Delete tag failed:', error);
+    }
   };
 
-  // Generate ID helper
-  const generateId = () => `todo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 
   // Add new todo
   const handleAddTodo = async (todoData: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      if (isRemoteEnabled()) {
-        const created = await saveData('todo', 'create', todoData) as Todo;
-        if (created) {
-          setTodos(prev => [created, ...prev]);
-          toast({ title: "Todo created!", description: `"${created.title}" has been added to your list.` });
-          return;
-        }
-      }
-
-      // Fallback to local
-      const now = new Date();
-      const newTodo: Todo = { ...todoData, id: generateId(), createdAt: now, updatedAt: now };
+      const newTodo = await todoApi.createTodo(todoData);
       setTodos(prev => [newTodo, ...prev]);
       toast({ title: "Todo created!", description: `"${newTodo.title}" has been added to your list.` });
     } catch (error) {
@@ -154,18 +189,8 @@ export const TodoApp = () => {
   // Update todo
   const handleUpdateTodo = async (id: string, updates: Partial<Todo>) => {
     try {
-      if (isRemoteEnabled()) {
-        const updated = await saveData('todo', 'update', updates, id) as Todo;
-        if (updated) {
-          setTodos(prev => prev.map(t => t.id === id ? updated : t));
-        }
-      } else {
-        setTodos(prev => prev.map(todo => 
-          todo.id === id 
-            ? { ...todo, ...updates, updatedAt: new Date() }
-            : todo
-        ));
-      }
+      const updatedTodo = await todoApi.updateTodo(id, updates);
+      setTodos(prev => prev.map(todo => todo.id === id ? updatedTodo : todo));
 
       if (updates.completed !== undefined) {
         const todo = todos.find(t => t.id === id);
@@ -186,9 +211,7 @@ export const TodoApp = () => {
   const handleDeleteTodo = async (id: string) => {
     try {
       const toRemove = todos.find(t => t.id === id);
-      if (isRemoteEnabled()) {
-        await saveData('todo', 'delete', null, id);
-      }
+      await todoApi.deleteTodo(id);
       setTodos(prev => prev.filter(todo => todo.id !== id));
       if (toRemove) {
         toast({ title: "Todo deleted", description: `"${toRemove.title}" has been removed from your list.`, variant: "destructive" });
@@ -232,12 +255,24 @@ export const TodoApp = () => {
     });
   }, [todos, filters]);
 
+  // Handle first-time user preference
+  const handlePreferenceSet = (preferCloud: boolean) => {
+    setShowFirstTimePrompt(false);
+    // Reload data based on new preference
+    initializeData();
+  };
+
   // Calculate progress
   const completedCount = todos.filter(todo => todo.completed).length;
   const totalCount = todos.length;
 
   return (
 		<div className="min-h-screen bg-gradient-subtle">
+			<FirstTimePrompt
+				isOpen={showFirstTimePrompt}
+				onClose={() => setShowFirstTimePrompt(false)}
+				onPreferenceSet={handlePreferenceSet}
+			/>
 			<div className="container mx-auto px-4 py-8 max-w-4xl">
 				{/* Header */}
 				<header className="flex items-center justify-between mb-8">
@@ -260,6 +295,18 @@ export const TodoApp = () => {
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
+						{isSyncing && (
+							<div className="flex items-center gap-2 text-sm text-muted-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								<span>Syncing...</span>
+							</div>
+						)}
+						{isCloudEnabled() && user && !isSyncing && (
+							<div className="flex items-center gap-2 text-sm text-primary">
+								<Cloud className="h-4 w-4" />
+								<span>Cloud</span>
+							</div>
+						)}
 						<AuthButtons />
 						<Settings
 							customTags={customTags}

@@ -4,179 +4,159 @@ import { Todo, CustomTag } from '@/types/todo';
 import * as todoApi from '@/api/todoApi';
 
 /**
- * Hook for managing data synchronization between local storage and remote API
+ * Hook for managing data synchronization between local storage and cloud API
  * 
- * When user is not authenticated: Uses localStorage only
- * When user authenticates: Syncs localStorage data to remote API
+ * When user prefers offline: Uses localStorage only
+ * When user prefers cloud: Uses AWS API with localStorage fallback
  * When user logs out: Keeps data in localStorage
- * 
- * This provides a seamless experience where guests can use the app offline,
- * and their data gets synced when they decide to sign up.
+ * When user logs in: Syncs local data to cloud after validation
  */
 
 export const useDataSync = () => {
-  const { user, authToken } = useAuth();
+  const { user } = useAuth();
 
-  // Sync local data to remote when user logs in
-  const syncLocalToRemote = useCallback(async () => {
-    if (!user || !authToken) return;
+  // Check if user prefers cloud storage
+  const isCloudEnabled = useCallback(() => {
+    return localStorage.getItem('preferCloud') === 'true';
+  }, []);
+
+  // Validate local data before syncing to cloud
+  const validateLocalData = useCallback((todos: Todo[], tags: CustomTag[]): boolean => {
+    try {
+      // Basic validation for todos
+      const validTodos = todos.every(todo => 
+        todo.id && 
+        todo.title && 
+        typeof todo.completed === 'boolean' &&
+        Array.isArray(todo.tags) &&
+        todo.createdAt instanceof Date &&
+        todo.updatedAt instanceof Date
+      );
+
+      // Basic validation for tags
+      const validTags = tags.every(tag => 
+        tag.id && 
+        tag.name && 
+        tag.color &&
+        tag.createdAt instanceof Date
+      );
+
+      return validTodos && validTags;
+    } catch (error) {
+      console.error('Local data validation failed:', error);
+      return false;
+    }
+  }, []);
+
+  // Sync local data to cloud after validation
+  const syncLocalToCloud = useCallback(async () => {
+    if (!user || !isCloudEnabled()) return;
 
     try {
-      console.log('Syncing local data to remote...');
+      console.log('🔄 Starting secure local-to-cloud sync...');
 
       // Get local data
-      const localTodos = localStorage.getItem('todos');
-      const localTags = localStorage.getItem('custom-tags');
+      const localTodos = todoApi.getTodosFromStorage();
+      const localTags = todoApi.getTagsFromStorage();
 
-      // Sync todos
-      if (localTodos) {
-        const todos: Todo[] = JSON.parse(localTodos).map((todo: any) => ({
-          ...todo,
-          createdAt: new Date(todo.createdAt),
-          updatedAt: new Date(todo.updatedAt),
-          dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
-        }));
+      // Validate local data
+      if (!validateLocalData(localTodos, localTags)) {
+        console.warn('⚠️ Local data validation failed, skipping sync');
+        return;
+      }
 
-        // First, get existing remote todos to avoid duplicates
-        let remoteTodos: Todo[] = [];
-        try {
-          remoteTodos = await todoApi.getTodos();
-        } catch (error) {
-          console.log('No existing remote todos, proceeding with sync');
-        }
+      console.log(`✅ Local data validated: ${localTodos.length} todos, ${localTags.length} tags`);
 
-        // Sync each local todo that doesn't exist remotely
-        for (const todo of todos) {
-          const exists = remoteTodos.some(remote => remote.id === todo.id);
-          if (!exists) {
-            try {
-              await todoApi.createTodo({
-                title: todo.title,
-                description: todo.description,
-                completed: todo.completed,
-                priority: todo.priority,
-                tags: todo.tags,
-                dueDate: todo.dueDate,
-              });
-            } catch (error) {
-              console.error('Failed to sync todo:', todo.id, error);
-            }
-          }
+      // Get cloud data for comparison (normalize shapes and dates)
+      const cloudTodosRaw = await todoApi.getTodos();
+      const cloudTagsRaw = await todoApi.getCustomTags();
+      const cloudTodos = (Array.isArray(cloudTodosRaw) ? cloudTodosRaw : []).map((t: any) => ({
+        ...t,
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt),
+        dueDate: t?.dueDate ? new Date(t.dueDate) : undefined,
+      }));
+      const cloudTags = (Array.isArray(cloudTagsRaw) ? cloudTagsRaw : []).map((tg: any) => ({
+        ...tg,
+        createdAt: new Date(tg.createdAt),
+      }));
+
+      // Sync todos with conflict resolution (last write wins)
+      for (const localTodo of localTodos) {
+        const cloudTodo = cloudTodos.find((ct: Todo) => ct.id === localTodo.id);
+        
+        if (!cloudTodo || localTodo.updatedAt > cloudTodo.updatedAt) {
+          console.log(`📤 Syncing todo: ${localTodo.title}`);
+          await todoApi.updateTodo(localTodo.id, localTodo);
         }
       }
 
-      // Sync custom tags
-      if (localTags) {
-        const tags: CustomTag[] = JSON.parse(localTags).map((tag: any) => ({
-          ...tag,
-          createdAt: new Date(tag.createdAt),
-        }));
+      // Sync tags with conflict resolution
+      for (const localTag of localTags) {
+        const cloudTag = cloudTags.find((ct: CustomTag) => ct.id === localTag.id);
 
-        // First, get existing remote tags to avoid duplicates
-        let remoteTags: CustomTag[] = [];
-        try {
-          remoteTags = await todoApi.getCustomTags();
-        } catch (error) {
-          console.log('No existing remote tags, proceeding with sync');
+        if (!cloudTag) {
+          // Tag does not exist in cloud yet → create it
+          console.log(`📤 Creating cloud tag: ${localTag.name}`);
+          const created = await todoApi.createCustomTag({ name: localTag.name, color: localTag.color });
+          // Update local storage with new cloud id to prevent future 403s on PUT
+          try {
+            const currentLocalTags = todoApi.getTagsFromStorage();
+            const updatedLocalTags = currentLocalTags.map(t =>
+              t.id === localTag.id
+                ? { ...t, id: created.id, createdAt: new Date(created.createdAt) }
+                : t
+            );
+            localStorage.setItem('custom-tags', JSON.stringify(updatedLocalTags));
+          } catch (e) {
+            console.warn('Failed to update local tags with cloud id', e);
+          }
+          continue;
         }
 
-        // Sync each local tag that doesn't exist remotely
-        for (const tag of tags) {
-          const exists = remoteTags.some(remote => remote.id === tag.id);
-          if (!exists) {
-            try {
-              await todoApi.createCustomTag({
-                name: tag.name,
-                color: tag.color,
-              });
-            } catch (error) {
-              console.error('Failed to sync tag:', tag.id, error);
-            }
-          }
+        if (localTag.createdAt > cloudTag.createdAt) {
+          console.log(`📤 Updating cloud tag: ${localTag.name}`);
+          await todoApi.updateCustomTag(localTag.id, { name: localTag.name, color: localTag.color });
         }
       }
 
-      console.log('Local data sync completed');
+      console.log('✅ Local-to-cloud sync completed');
     } catch (error) {
-      console.error('Error syncing local data to remote:', error);
+      console.error('❌ Local-to-cloud sync failed:', error);
     }
-  }, [user, authToken]);
+  }, [user, isCloudEnabled, validateLocalData]);
 
-  // Load remote data and merge with local when user logs in
-  const loadRemoteData = useCallback(async () => {
-    if (!user || !authToken) return { todos: [], customTags: [] };
-
+  // Initialize data when user changes or preference changes
+  const initializeData = useCallback(async () => {
     try {
-      console.log('Loading remote data...');
+      console.log('Initializing data...');
       
-      const [remoteTodos, remoteTags] = await Promise.all([
-        todoApi.getTodos().catch(() => []),
-        todoApi.getCustomTags().catch(() => []),
-      ]);
-
-      console.log('Remote data loaded:', { todos: remoteTodos.length, tags: remoteTags.length });
-      
-      return {
-        todos: remoteTodos,
-        customTags: remoteTags,
-      };
-    } catch (error) {
-      console.error('Error loading remote data:', error);
-      return { todos: [], customTags: [] };
-    }
-  }, [user, authToken]);
-
-  // Save data to appropriate storage (local or remote)
-  const saveData = useCallback(async (
-    type: 'todo' | 'customTag',
-    operation: 'create' | 'update' | 'delete',
-    data: any,
-    id?: string
-  ) => {
-    if (user && authToken) {
-      // User is authenticated, save to remote API
-      try {
-        switch (type) {
-          case 'todo':
-            switch (operation) {
-              case 'create':
-                return await todoApi.createTodo(data);
-              case 'update':
-                return await todoApi.updateTodo(id!, data);
-              case 'delete':
-                await todoApi.deleteTodo(id!);
-                return;
-            }
-            break;
-          case 'customTag':
-            switch (operation) {
-              case 'create':
-                return await todoApi.createCustomTag(data);
-              case 'update':
-                return await todoApi.updateCustomTag(id!, data);
-              case 'delete':
-                await todoApi.deleteCustomTag(id!);
-                return;
-            }
-            break;
-        }
-      } catch (error) {
-        console.error(`Error ${operation} ${type} remotely:`, error);
-        throw error;
+      if (isCloudEnabled() && user) {
+        console.log('☁️ User logged in with cloud sync enabled');
+        
+        // First, sync local data to cloud (after validation)
+        await syncLocalToCloud();
+        
+        // Then fetch latest data from cloud
+        console.log('📥 Fetching latest data from cloud...');
+        // Data will be loaded by the TodoApp component using the API
+      } else {
+        console.log('💾 Loading data from localStorage...');
+        // Data will be loaded by the TodoApp component from localStorage
       }
+    } catch (error) {
+      console.error('Error initializing data:', error);
     }
-    // If not authenticated or API fails, data will be saved to localStorage by the calling component
-  }, [user, authToken]);
+  }, [user, isCloudEnabled, syncLocalToCloud]);
 
-  // Check if user is authenticated and can use remote API
-  const isRemoteEnabled = useCallback(() => {
-    return !!(user && authToken);
-  }, [user, authToken]);
+  // Effect to initialize data when user changes
+  useEffect(() => {
+    initializeData();
+  }, [user, initializeData]);
 
   return {
-    syncLocalToRemote,
-    loadRemoteData,
-    saveData,
-    isRemoteEnabled,
+    initializeData,
+    isCloudEnabled,
+    syncLocalToCloud,
   };
 };

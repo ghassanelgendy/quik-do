@@ -89,6 +89,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     await signOut(auth);
     sessionStorage.removeItem('authToken');
+    // Clear local data so the next user starts clean
+    try {
+      localStorage.removeItem('todos');
+      localStorage.removeItem('custom-tags');
+    } catch {}
   };
 
   const value = useMemo<AuthContextValue>(() => ({

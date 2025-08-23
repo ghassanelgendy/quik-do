@@ -6,7 +6,11 @@ import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
-export const AuthButtons = () => {
+interface AuthButtonsProps {
+  onAuthSuccess?: () => void;
+}
+
+export const AuthButtons = ({ onAuthSuccess }: AuthButtonsProps = {}) => {
   const { user, loginWithEmail, registerWithEmail, loginWithGoogle, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -78,6 +82,10 @@ export const AuthButtons = () => {
       setPassword('');
       setDisplayName('');
       setValidationErrors({});
+      // Any successful auth implies cloud preference
+      localStorage.setItem('preferCloud', 'true');
+      localStorage.setItem('hasSeenFirstTimePrompt', 'true');
+      onAuthSuccess?.();
     } catch (err: any) {
       setError(err?.message || 'Something went wrong');
     } finally {
@@ -186,6 +194,10 @@ export const AuthButtons = () => {
                 try {
                   await loginWithGoogle();
                   setOpen(false);
+                  // Any successful auth implies cloud preference
+                  localStorage.setItem('preferCloud', 'true');
+                  localStorage.setItem('hasSeenFirstTimePrompt', 'true');
+                  onAuthSuccess?.();
                 } catch (err: any) {
                   setError(err?.message || 'Google sign-in failed');
                 } finally {
