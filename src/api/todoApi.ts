@@ -1,16 +1,76 @@
 import { Todo, CustomTag } from '../types/todo';
+import { auth } from '@/lib/firebase';
 
-// API Configuration - Replace with your AWS API Gateway URL
+// API Configuration - use provided test base URL by default
 // In Vite, env vars are accessed via import.meta.env and must be prefixed with VITE_
-const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || 'https://your-api-gateway-url.amazonaws.com/prod';
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || 'https://pcuygumkf6.execute-api.eu-west-1.amazonaws.com/test';
 
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('authToken');
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` }),
+// Retrieve a valid Firebase ID token, optionally forcing a refresh
+const getToken = async (forceRefresh = false): Promise<string | null> => {
+  const existing = sessionStorage.getItem('authToken');
+  if (existing && !forceRefresh) return existing;
+
+  const currentUser = auth.currentUser;
+  if (!currentUser) return null;
+
+  const token = await currentUser.getIdToken(forceRefresh);
+  if (token) sessionStorage.setItem('authToken', token);
+  return token || null;
+};
+
+// Centralized request helper with auth and error handling (with single retry on 401/403)
+const apiRequest = async (path: string, options: RequestInit = {}) => {
+  const attempt = async (useRefreshedToken: boolean) => {
+    const token = await getToken(useRefreshedToken);
+    if (!token) {
+      const error = new Error('Authentication required');
+      (error as any).status = 401;
+      throw error;
+    }
+
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+      'Authorization': `Bearer ${token}`,
+    } as HeadersInit;
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+    return response;
   };
+
+  try {
+    let response = await attempt(false);
+
+    if (response.status === 401 || response.status === 403) {
+      // Try once with a forced token refresh
+      sessionStorage.removeItem('authToken');
+      response = await attempt(true);
+    }
+
+    if (!response.ok) {
+      let message = `Request failed: ${response.status}`;
+      try {
+        const body = await response.json();
+        if (body?.message) message = body.message;
+      } catch {}
+
+      const err: any = new Error(message);
+      err.status = response.status;
+      throw err;
+    }
+
+    if (response.status === 204) return null;
+    return await response.json();
+  } catch (e: any) {
+    if (e.name === 'TypeError') {
+      // Network error
+      throw new Error('Network error. Please check your connection.');
+    }
+    throw e;
+  }
 };
 
 /**
@@ -30,26 +90,7 @@ const getAuthHeaders = () => {
 // GET /todos - Retrieve all todos for authenticated user
 export const getTodos = async (): Promise<Todo[]> => {
   try {
-    // Lambda function should:
-    // 1. Validate Firebase JWT token from Authorization header
-    // 2. Extract user_id from token payload
-    // 3. Query DynamoDB with user_id as partition key
-    // 4. Transform DynamoDB items to Todo objects with proper date parsing
-    // 5. Return sorted by createdAt desc
-    
-    const response = await fetch(`${API_BASE_URL}/todos`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      throw new Error(`Failed to fetch todos: ${response.status}`);
-    }
-
-    const todos = await response.json();
+    const todos = await apiRequest(`/todos`, { method: 'GET' });
     
     // Transform date strings back to Date objects
     return todos.map((todo: any) => ({
@@ -64,35 +105,16 @@ export const getTodos = async (): Promise<Todo[]> => {
   }
 };
 
-// POST /todos - Create a new todo
+// PUT /todos - Create or update todo (server decides based on id presence)
 export const createTodo = async (todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>): Promise<Todo> => {
   try {
-    // Lambda function should:
-    // 1. Validate Firebase JWT token and extract user_id
-    // 2. Validate request body against schema
-    // 3. Generate unique todo_id (UUID v4)
-    // 4. Add timestamps (createdAt, updatedAt) as ISO strings
-    // 5. Store in DynamoDB: PK=user_id, SK=todo_id
-    // 6. Return the created todo with proper structure
-    
-    const response = await fetch(`${API_BASE_URL}/todos`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
+    const createdTodo = await apiRequest(`/todos`, {
+      method: 'PUT',
       body: JSON.stringify({
         ...todo,
-        // Convert Date objects to ISO strings for DynamoDB
         dueDate: todo.dueDate?.toISOString(),
       }),
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      throw new Error(`Failed to create todo: ${response.status}`);
-    }
-
-    const createdTodo = await response.json();
     
     // Transform response back to proper Date objects
     return {
@@ -107,38 +129,18 @@ export const createTodo = async (todo: Omit<Todo, 'id' | 'createdAt' | 'updatedA
   }
 };
 
-// PUT /todos/:id - Update an existing todo
+// PUT /todos - Update an existing todo (id required in body)
 export const updateTodo = async (id: string, updates: Partial<Todo>): Promise<Todo> => {
   try {
-    // Lambda function should:
-    // 1. Validate Firebase JWT token and extract user_id
-    // 2. Verify todo exists and belongs to user (PK=user_id, SK=todo_id)
-    // 3. Update only provided fields in DynamoDB
-    // 4. Set updatedAt timestamp automatically
-    // 5. Return updated todo
-    
-    const response = await fetch(`${API_BASE_URL}/todos/${id}`, {
+    const updatedTodo = await apiRequest(`/todos`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
       body: JSON.stringify({
+        id,
         ...updates,
-        // Convert Date objects to ISO strings
         dueDate: updates.dueDate?.toISOString(),
         updatedAt: new Date().toISOString(),
       }),
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      if (response.status === 404) {
-        throw new Error('Todo not found');
-      }
-      throw new Error(`Failed to update todo: ${response.status}`);
-    }
-
-    const updatedTodo = await response.json();
     
     // Transform response back to proper Date objects
     return {
@@ -153,29 +155,10 @@ export const updateTodo = async (id: string, updates: Partial<Todo>): Promise<To
   }
 };
 
-// DELETE /todos/:id - Delete a todo
+// DELETE /todos/{id} - Delete a todo
 export const deleteTodo = async (id: string): Promise<void> => {
   try {
-    // Lambda function should:
-    // 1. Validate Firebase JWT token and extract user_id
-    // 2. Verify todo exists and belongs to user
-    // 3. Remove item from DynamoDB
-    // 4. Return 204 No Content on success
-    
-    const response = await fetch(`${API_BASE_URL}/todos/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      if (response.status === 404) {
-        throw new Error('Todo not found');
-      }
-      throw new Error(`Failed to delete todo: ${response.status}`);
-    }
+    await apiRequest(`/todos/${id}`, { method: 'DELETE' });
   } catch (error) {
     console.error('Error deleting todo:', error);
     throw error;
@@ -187,19 +170,7 @@ export const deleteTodo = async (id: string): Promise<void> => {
 // GET /tags - Retrieve all custom tags for authenticated user
 export const getCustomTags = async (): Promise<CustomTag[]> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/tags`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      throw new Error(`Failed to fetch tags: ${response.status}`);
-    }
-
-    const tags = await response.json();
+    const tags = await apiRequest(`/tags`, { method: 'GET' });
     
     // Transform date strings back to Date objects
     return tags.map((tag: any) => ({
@@ -215,20 +186,10 @@ export const getCustomTags = async (): Promise<CustomTag[]> => {
 // POST /tags - Create a new custom tag
 export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>): Promise<CustomTag> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/tags`, {
+    const createdTag = await apiRequest(`/tags`, {
       method: 'POST',
-      headers: getAuthHeaders(),
       body: JSON.stringify(tag),
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      throw new Error(`Failed to create tag: ${response.status}`);
-    }
-
-    const createdTag = await response.json();
     
     return {
       ...createdTag,
@@ -243,23 +204,10 @@ export const createCustomTag = async (tag: Omit<CustomTag, 'id' | 'createdAt'>):
 // PUT /tags/:id - Update an existing custom tag
 export const updateCustomTag = async (id: string, updates: Partial<CustomTag>): Promise<CustomTag> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/tags/${id}`, {
+    const updatedTag = await apiRequest(`/tags/${id}`, {
       method: 'PUT',
-      headers: getAuthHeaders(),
       body: JSON.stringify(updates),
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      if (response.status === 404) {
-        throw new Error('Tag not found');
-      }
-      throw new Error(`Failed to update tag: ${response.status}`);
-    }
-
-    const updatedTag = await response.json();
     
     return {
       ...updatedTag,
@@ -274,20 +222,7 @@ export const updateCustomTag = async (id: string, updates: Partial<CustomTag>): 
 // DELETE /tags/:id - Delete a custom tag
 export const deleteCustomTag = async (id: string): Promise<void> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/tags/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required');
-      }
-      if (response.status === 404) {
-        throw new Error('Tag not found');
-      }
-      throw new Error(`Failed to delete tag: ${response.status}`);
-    }
+    await apiRequest(`/tags/${id}`, { method: 'DELETE' });
   } catch (error) {
     console.error('Error deleting custom tag:', error);
     throw error;

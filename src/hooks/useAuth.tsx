@@ -37,21 +37,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
           const token = await fbUser.getIdToken();
           setAuthToken(token);
-          localStorage.setItem('authToken', token);
+          sessionStorage.setItem('authToken', token);
         } catch (error) {
           console.error('Error getting auth token:', error);
           setAuthToken(null);
-          localStorage.removeItem('authToken');
+          sessionStorage.removeItem('authToken');
         }
       } else {
         setAuthToken(null);
-        localStorage.removeItem('authToken');
+        sessionStorage.removeItem('authToken');
       }
       
       setLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  // Periodic token refresh every 30 minutes
+  useEffect(() => {
+    if (!user) return;
+    const intervalId = setInterval(async () => {
+      try {
+        const refreshed = await auth.currentUser?.getIdToken(true);
+        if (refreshed) {
+          setAuthToken(refreshed);
+          sessionStorage.setItem('authToken', refreshed);
+        }
+      } catch (err) {
+        console.error('Failed to refresh auth token:', err);
+      }
+    }, 30 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [user]);
 
   const registerWithEmail = async (email: string, password: string, displayName?: string) => {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
@@ -71,6 +88,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await signOut(auth);
+    sessionStorage.removeItem('authToken');
   };
 
   const value = useMemo<AuthContextValue>(() => ({
