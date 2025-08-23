@@ -102,15 +102,16 @@ export const AddTodo = ({ onAdd, customTags }: AddTodoProps) => {
 
   return (
     <Card className="border-primary/20 shadow-glow">
-      <CardContent className="pt-6">
+      <CardContent className="pt-6 pl-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title Input */}
           <Input
             placeholder="What needs to be done?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="text-lg border-none px-0 focus-visible:ring-0 placeholder:text-muted-foreground"
+            className="text-lg border-none px-0 pl-4 focus-visible:ring-0 placeholder:text-muted-foreground"
             autoFocus
+            style={{ paddingTop: '10px', paddingBottom: '10px', paddingLeft: '16px', paddingRight: '16px' }}
           />
 
           {/* Description */}

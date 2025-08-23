@@ -94,7 +94,7 @@ export const TodoItem = ({ todo, onUpdate, onDelete, customTags }: TodoItemProps
             <Input
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
-              className="text-lg"
+              className="text-lg pl-3"
               placeholder="Todo title..."
             />
             <Textarea
