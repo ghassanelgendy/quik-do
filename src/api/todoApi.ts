@@ -3,15 +3,21 @@ import { auth } from '@/lib/firebase';
 
 // Generate UUID function for compatibility
 const generateUUID = (): string => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  // Fallback for environments without crypto.randomUUID
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  const timestamp = Date.now().toString(16); // hex timestamp
+  const random = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+    .toString(16)
+    .padStart(16, "0"); // 16 hex chars
+
+  const base = (timestamp + random).padEnd(32, "0"); // ensure 32 chars
+
+  // format as 8-4-4-4-12
+  return (
+    base.slice(0, 8) + "-" +
+    base.slice(8, 12) + "-" +
+    "4" + base.slice(13, 16) + "-" +  // force version 4 style
+    ((parseInt(base[16], 16) & 0x3) | 0x8).toString(16) + base.slice(17, 20) + "-" +
+    base.slice(20, 32)
+  );
 };
 
 // API Configuration

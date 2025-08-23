@@ -14,6 +14,25 @@ import { useDataSync } from '@/hooks/useDataSync';
 import { FirstTimePrompt } from './FirstTimePrompt';
 import { Cloud, Loader2 } from 'lucide-react';
 
+// Generate UUID function for compatibility
+const generateUUID = (): string => {
+  const timestamp = Date.now().toString(16); // hex timestamp
+  const random = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+    .toString(16)
+    .padStart(16, "0"); // 16 hex chars
+
+  const base = (timestamp + random).padEnd(32, "0"); // ensure 32 chars
+
+  // format as 8-4-4-4-12
+  return (
+    base.slice(0, 8) + "-" +
+    base.slice(8, 12) + "-" +
+    "4" + base.slice(13, 16) + "-" +  // force version 4 style
+    ((parseInt(base[16], 16) & 0x3) | 0x8).toString(16) + base.slice(17, 20) + "-" +
+    base.slice(20, 32)
+  );
+};
+
 export const TodoApp = () => {
   const { user } = useAuth();
   const { initializeData, isCloudEnabled } = useDataSync();
@@ -147,7 +166,7 @@ export const TodoApp = () => {
   const handleAddCustomTag = async (tagData: Omit<CustomTag, 'id' | 'createdAt'>) => {
     try {
       // Optimistic create
-      const optimistic: CustomTag = { ...tagData, id: `tmp-${crypto.randomUUID()}`, createdAt: new Date() };
+      const optimistic: CustomTag = { ...tagData, id: `tmp-${generateUUID()}`, createdAt: new Date() };
       setCustomTags(prev => [...prev, optimistic]);
 
       try {
@@ -225,7 +244,7 @@ export const TodoApp = () => {
       // Optimistic create
       const optimistic: Todo = {
         ...todoData,
-        id: `tmp-${crypto.randomUUID()}`,
+        id: `tmp-${generateUUID()}`,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
