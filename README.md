@@ -15,6 +15,7 @@ For more detailed information, please see the full [documentation](https://githu
 ---
 
 ### Architecture
+<img width="2550" height="1250" alt="infrastructure architecture diagram" src="https://github.com/user-attachments/assets/b4d9ade2-5323-422d-bee4-f42a2edbdce0" />
 
 The Quik-do application follows a robust, purely serverless architecture, leveraging various AWS services to provide a scalable, cost-effective, and highly available solution.
 
