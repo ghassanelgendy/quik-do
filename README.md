@@ -6,7 +6,7 @@ Quik-do is a simple and modern to-do list application that allows users to manag
 
 Check out the live demo [here](https://ghassanelgendy.github.io/quik-do/).
 
-For more detailed information, please see the [full documentation](documentation.pdf).
+For more detailed information, please see the [full documentation](https://github.com/ghassanelgendy/quik-do/blob/main/documentation.pdf).
 
 ## Architecture
 
@@ -73,3 +73,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 Ghassan Elgendy - [@ghassanelgendy](https://linkedin.com/in/ghassanelgendy) - ghassanelgendy@gmail.com
 
 Project Link: [https://github.com/ghassanelgendy/quik-do](https://github.com/ghassanelgendy/quik-do)
+
