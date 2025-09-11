@@ -1,12 +1,13 @@
-# Quik-do
+<img width="886" height="400" alt="Gemini_Generated_Image_8rzngq8rzngq8rzn" src="https://github.com/user-attachments/assets/03ef9331-ad5e-46f7-bf34-63cd9fcf1a24" />
 
+# Quik-do
 Quik-do is a simple and modern to-do list application that allows users to manage their tasks. It provides features like creating, editing, deleting, and marking tasks as complete. The application is designed to be fast, responsive, and accessible from any device with a web browser.
 
 ## Demo
 
 Check out the live demo [here](https://ghassanelgendy.github.io/quik-do/).
 
-For more detailed information, please see the [full documentation](https://github.com/ghassanelgendy/quik-do/blob/main/documentation.pdf).
+For more detailed information, please see the [full documentation](documentation.pdf).
 
 ## Architecture
 
